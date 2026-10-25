@@ -1,0 +1,7 @@
+build/
+dist/
+*.o
+*.dll
+*.vcvplugin
+.autonomous/
+plugin.dll
