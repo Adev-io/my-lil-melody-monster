@@ -1,5 +1,6 @@
 #include "sched.hpp"   // before plugin.hpp: parsed ahead of `using namespace rack` (rack::engine::Engine clash)
 #include "plugin.hpp"
+#include "layout.hpp"
 #include "TalkingFace.hpp"
 #include <cmath>
 #include <atomic>
@@ -241,37 +242,12 @@ struct FloatSliderQ : Quantity { float* v; float lo, hi, step, def; std::string 
 struct OwnedSlider : ui::Slider { ~OwnedSlider() override { delete quantity; } };   // ui::Slider does not own its Quantity
 static ui::Slider* mkSlider(Quantity* q) { OwnedSlider* s = new OwnedSlider; s->quantity = q; s->box.size.x = 220.f; return s; }
 
-// Static panel text in nanovg (Rack does not render SVG <text>). Positions in mm, centred; offsets from the control centres
-// in the widget constructor: knobs/trimpots/jacks below, buttons below (their lights sit above), track numbers below.
-struct PanelLabels : TransparentWidget {
-  std::shared_ptr<Font> font;
-  void draw(const DrawArgs& args) override {   // no module access: also draws in the module browser
-    if (!font) font = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
-    if (!font || font->handle < 0) return;
-    struct L { const char* text; float xmm, ymm; };
-    static const L labels[] = {
-      {"MELODY MONSTER", 60.96f, 6.f},
-      {"1", 12.f, 68.f}, {"2", 26.f, 68.f}, {"3", 40.f, 68.f}, {"4", 54.f, 68.f}, {"5", 68.f, 68.f}, {"6", 82.f, 68.f}, {"7", 96.f, 68.f}, {"8", 110.f, 68.f},
-      {"CHANCE", 14.f, 86.5f}, {"NOTE", 34.f, 86.5f}, {"OCTAVE", 54.f, 86.5f},
-      {"LENG", 70.f, 79.5f}, {"RATE", 80.f, 79.5f}, {"DIRN", 90.f, 79.5f}, {"TRNS", 70.f, 93.5f}, {"SHFT", 80.f, 93.5f}, {"OCTA", 90.f, 93.5f},
-      {"FRZE", 100.f, 81.f}, {"MUTE", 108.f, 81.f}, {"SOLO", 116.f, 81.f}, {"RUN", 100.f, 95.f}, {"RSET", 108.f, 95.f}, {"RSED", 116.f, 95.f},
-      {"GATE", 41.25f, 98.5f},
-      {"1", 8.f, 109.75f}, {"2", 17.5f, 109.75f}, {"3", 27.f, 109.75f}, {"4", 36.5f, 109.75f}, {"5", 46.f, 109.75f}, {"6", 55.5f, 109.75f}, {"7", 65.f, 109.75f}, {"8", 74.5f, 109.75f},
-      {"PITCH", 41.25f, 121.5f},
-      {"CLK OUT", 92.f, 109.5f}, {"CLK IN", 102.f, 109.5f}, {"RST IN", 112.f, 109.5f}, {"RESEED", 92.f, 121.5f}, {"FREEZE", 102.f, 121.5f}, {"SEED", 112.f, 121.5f},
-    };
-    NVGcontext* vg = args.vg;
-    nvgFontFaceId(vg, font->handle); nvgFontSize(vg, 9.f); nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE); nvgFillColor(vg, nvgRGB(40, 40, 40));
-    for (const L& l : labels) { Vec p = mm2px(Vec(l.xmm, l.ymm)); nvgText(vg, p.x, p.y, l.text, NULL); }
-  }
-};
-
 // MonsterDisplay is defined here, after MelodyMonster is a complete type (Display.hpp only forward-declares it)
 #include "Display.hpp"
 void MonsterDisplay::drawLayer(const DrawArgs& args, int layer) {
   if (layer != 1) return;
   NVGcontext* vg = args.vg;
-  nvgBeginPath(vg); nvgRect(vg, 0, 0, box.size.x, box.size.y); nvgFillColor(vg, nvgRGB(10, 12, 16)); nvgFill(vg);
+  nvgBeginPath(vg); nvgRect(vg, 0, 0, box.size.x, box.size.y); nvgFillColor(vg, nvgRGB(0x16, 0x16, 0x1a)); nvgFill(vg);
   if (!module) return;  // module browser preview: background only
   ::Engine& e = module->eng;
   if (!font) font = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
@@ -281,8 +257,8 @@ void MonsterDisplay::drawLayer(const DrawArgs& args, int layer) {
   for (int i = 0; i < 8; ++i) {
     const TrackParams& p = e.p[i]; const TrackOut& o = e.out(i);
     float y = i * laneH; bool dim = o.breathing || !e.audible(i);
-    NVGcolor bar = dim ? nvgRGB(60, 70, 85) : nvgRGB(150, 175, 205);
-    nvgFontFaceId(vg, font->handle); nvgFontSize(vg, 9.f); nvgFillColor(vg, i == e.selected ? nvgRGB(230, 180, 70) : nvgRGB(120, 130, 145));
+    NVGcolor bar = dim ? nvgRGB(0x5a, 0x64, 0x3a) : nvgRGB(0xc8, 0xff, 0x3a);
+    nvgFontFaceId(vg, font->handle); nvgFontSize(vg, 9.f); nvgFillColor(vg, i == e.selected ? nvgRGB(0xff, 0x3d, 0x9a) : nvgRGB(0x8d, 0x8d, 0x96));
     nvgText(vg, 2.f, y + laneH * 0.75f, string::f("%d", i + 1).c_str(), NULL);
     const Slot* src = e.t[e.sourceIndex(i)].slots;   // same chain resolution as the engine
     int lo = 127, hi = 0; for (int s = 0; s < p.length; ++s) { NoteOut n = renderSlot(src[s], p, e.g); if (n.semitone < lo) lo = n.semitone; if (n.semitone > hi) hi = n.semitone; }
@@ -292,14 +268,14 @@ void MonsterDisplay::drawLayer(const DrawArgs& args, int layer) {
       NoteOut n = renderSlot(src[posmod(s + p.shift, p.length)], p, e.g);
       float h = n.plays ? 2.f + (laneH - 5.f) * (hi > lo ? (float)(n.semitone - lo) / (hi - lo) : 0.5f) : 1.5f;
       nvgBeginPath(vg); nvgRect(vg, x0 + s * cellW + 0.5f, y + laneH - 1.5f - h, cellW - 1.f, h);
-      nvgFillColor(vg, s == cursorCol ? nvgRGB(255, 240, 200) : bar); nvgFill(vg);
+      nvgFillColor(vg, s == cursorCol ? nvgRGB(0xf2, 0xf2, 0xf4) : bar); nvgFill(vg);
     }
     std::string f; if (p.solo) f += "S"; if (p.mute) f += "M"; if (p.follow) f += string::f("<%d", p.follow);
-    nvgFillColor(vg, nvgRGB(230, 180, 70)); nvgText(vg, x0 + laneW + 2.f, y + laneH * 0.75f, f.c_str(), NULL);
+    nvgFillColor(vg, nvgRGB(0xff, 0x3d, 0x9a)); nvgText(vg, x0 + laneW + 2.f, y + laneH * 0.75f, f.c_str(), NULL);
   }
   // right column: selected track, one item per line
   float rx = box.size.x * 0.72f; const TrackParams& p = e.p[e.selected];
-  nvgFontSize(vg, 10.f); nvgFillColor(vg, nvgRGB(230, 230, 230));
+  nvgFontSize(vg, 10.f); nvgFillColor(vg, nvgRGB(0xf2, 0xf2, 0xf4));
   bool arm = e.t[e.selected].armedPending, fz = e.g.freeze;
   std::string lines[8] = { string::f("T%d  SD %d", e.selected + 1, p.seed), string::f("CH %d  NT %d", p.chance, p.note), string::f("OC %d  EV %d", p.octave, p.evolve),
     string::f("RATE %s", RATES[p.rateIdx].label), string::f("LEN %d", p.length), string::f("DIR %s", DIRN_NAMES[p.dirn]),
@@ -314,78 +290,49 @@ struct MelodyMonsterWidget : ModuleWidget {
 	MelodyMonsterWidget(MelodyMonster* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/MelodyMonster.svg")));
-		{ PanelLabels* pl = createWidget<PanelLabels>(Vec(0, 0)); pl->box.size = box.size; addChild(pl); }
-		{ TalkingFace* f = createWidget<TalkingFace>(mm2px(Vec(113.5f - 3.6f, 5.f - 3.6f))); f->box.size = mm2px(Vec(7.2f, 7.2f)); if (module) f->tap = &module->face; addChild(f); }
+		namespace L = layout::melody;
+		auto at = [](const float (&a)[2]) { return mm2px(Vec(a[0], a[1])); };
+		{ TalkingFace* f = createWidget<TalkingFace>(mm2px(Vec(L::FACE[0] - L::FACE[2], L::FACE[1] - L::FACE[2]))); f->box.size = mm2px(Vec(2 * L::FACE[2], 2 * L::FACE[2])); if (module) f->tap = &module->face; addChild(f); }
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(12.0, 63.0)), module, MelodyMonster::TRACK1_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(26.0, 63.0)), module, MelodyMonster::TRACK2_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(40.0, 63.0)), module, MelodyMonster::TRACK3_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(54.0, 63.0)), module, MelodyMonster::TRACK4_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(68.0, 63.0)), module, MelodyMonster::TRACK5_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(82.0, 63.0)), module, MelodyMonster::TRACK6_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(96.0, 63.0)), module, MelodyMonster::TRACK7_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(110.0, 63.0)), module, MelodyMonster::TRACK8_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(70.0, 74.0)), module, MelodyMonster::LENG_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(80.0, 74.0)), module, MelodyMonster::RATE_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(90.0, 74.0)), module, MelodyMonster::DIRN_PARAM));
-		addParam(createParamCentered<VCVLatch>(mm2px(Vec(100.0, 76.0)), module, MelodyMonster::FRZE_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(108.0, 76.0)), module, MelodyMonster::MUTE_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(116.0, 76.0)), module, MelodyMonster::SOLO_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.0, 80.0)), module, MelodyMonster::CHANCE_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(34.0, 80.0)), module, MelodyMonster::NOTE_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(54.0, 80.0)), module, MelodyMonster::OCTAVE_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(70.0, 88.0)), module, MelodyMonster::TRNS_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(80.0, 88.0)), module, MelodyMonster::SHFT_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(90.0, 88.0)), module, MelodyMonster::OCTA_PARAM));
-		addParam(createParamCentered<VCVLatch>(mm2px(Vec(100.0, 90.0)), module, MelodyMonster::RUN_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(108.0, 90.0)), module, MelodyMonster::RSET_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(116.0, 90.0)), module, MelodyMonster::RSED_PARAM));
+		static const float* const trk[8] = { L::TRACK1_PARAM, L::TRACK2_PARAM, L::TRACK3_PARAM, L::TRACK4_PARAM, L::TRACK5_PARAM, L::TRACK6_PARAM, L::TRACK7_PARAM, L::TRACK8_PARAM };
+		for (int i = 0; i < 8; ++i)
+			addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<LimeLight>>>(mm2px(Vec(trk[i][0], trk[i][1])), module, MelodyMonster::TRACK1_PARAM + i, MelodyMonster::TRACK1_LIGHT + i));
+		addParam(createParamCentered<Trimpot>(at(L::LENG_PARAM), module, MelodyMonster::LENG_PARAM));
+		addParam(createParamCentered<Trimpot>(at(L::RATE_PARAM), module, MelodyMonster::RATE_PARAM));
+		addParam(createParamCentered<Trimpot>(at(L::DIRN_PARAM), module, MelodyMonster::DIRN_PARAM));
+		addParam(createParamCentered<Trimpot>(at(L::TRNS_PARAM), module, MelodyMonster::TRNS_PARAM));
+		addParam(createParamCentered<Trimpot>(at(L::SHFT_PARAM), module, MelodyMonster::SHFT_PARAM));
+		addParam(createParamCentered<Trimpot>(at(L::OCTA_PARAM), module, MelodyMonster::OCTA_PARAM));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<LimeLight>>>(at(L::FRZE_PARAM), module, MelodyMonster::FRZE_PARAM, MelodyMonster::FRZE_LIGHT));
+		addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<LimeLight>>>(at(L::MUTE_PARAM), module, MelodyMonster::MUTE_PARAM, MelodyMonster::MUTE_LIGHT));
+		addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<LimeLight>>>(at(L::SOLO_PARAM), module, MelodyMonster::SOLO_PARAM, MelodyMonster::SOLO_LIGHT));
+		addParam(createParamCentered<Rogan1PSWhite>(at(L::CHANCE_PARAM), module, MelodyMonster::CHANCE_PARAM));
+		addParam(createParamCentered<Rogan1PSWhite>(at(L::NOTE_PARAM), module, MelodyMonster::NOTE_PARAM));
+		addParam(createParamCentered<Rogan1PSWhite>(at(L::OCTAVE_PARAM), module, MelodyMonster::OCTAVE_PARAM));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<LimeLight>>>(at(L::RUN_PARAM), module, MelodyMonster::RUN_PARAM, MelodyMonster::RUN_LIGHT));
+		addParam(createParamCentered<VCVButton>(at(L::RSET_PARAM), module, MelodyMonster::RSET_PARAM));
+		addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<LimeLight>>>(at(L::RSED_PARAM), module, MelodyMonster::RSED_PARAM, MelodyMonster::RSED_LIGHT));
 
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.0, 104.0)), module, MelodyMonster::CLK_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(112.0, 104.0)), module, MelodyMonster::RST_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(92.0, 116.0)), module, MelodyMonster::RESEED_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.0, 116.0)), module, MelodyMonster::FREEZE_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(112.0, 116.0)), module, MelodyMonster::SEED_INPUT));
+		addInput(createInputCentered<PJ301MPort>(at(L::CLK_INPUT), module, MelodyMonster::CLK_INPUT));
+		addInput(createInputCentered<PJ301MPort>(at(L::RST_INPUT), module, MelodyMonster::RST_INPUT));
+		addInput(createInputCentered<PJ301MPort>(at(L::RESEED_INPUT), module, MelodyMonster::RESEED_INPUT));
+		addInput(createInputCentered<PJ301MPort>(at(L::FREEZE_INPUT), module, MelodyMonster::FREEZE_INPUT));
+		addInput(createInputCentered<PJ301MPort>(at(L::SEED_INPUT), module, MelodyMonster::SEED_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(at(L::CLK_OUTPUT), module, MelodyMonster::CLK_OUTPUT));
+		static const float* const gate[8] = { L::GATE1_OUTPUT, L::GATE2_OUTPUT, L::GATE3_OUTPUT, L::GATE4_OUTPUT, L::GATE5_OUTPUT, L::GATE6_OUTPUT, L::GATE7_OUTPUT, L::GATE8_OUTPUT };
+		static const float* const pitch[8] = { L::PITCH1_OUTPUT, L::PITCH2_OUTPUT, L::PITCH3_OUTPUT, L::PITCH4_OUTPUT, L::PITCH5_OUTPUT, L::PITCH6_OUTPUT, L::PITCH7_OUTPUT, L::PITCH8_OUTPUT };
+		for (int i = 0; i < 8; ++i) {
+			addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(gate[i][0], gate[i][1])), module, MelodyMonster::GATE1_OUTPUT + i));
+			addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(pitch[i][0], pitch[i][1])), module, MelodyMonster::PITCH1_OUTPUT + i));
+		}
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(8.0, 104.0)), module, MelodyMonster::GATE1_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(17.5, 104.0)), module, MelodyMonster::GATE2_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(27.0, 104.0)), module, MelodyMonster::GATE3_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(36.5, 104.0)), module, MelodyMonster::GATE4_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(46.0, 104.0)), module, MelodyMonster::GATE5_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(55.5, 104.0)), module, MelodyMonster::GATE6_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(65.0, 104.0)), module, MelodyMonster::GATE7_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(74.5, 104.0)), module, MelodyMonster::GATE8_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(92.0, 104.0)), module, MelodyMonster::CLK_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(8.0, 116.0)), module, MelodyMonster::PITCH1_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(17.5, 116.0)), module, MelodyMonster::PITCH2_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(27.0, 116.0)), module, MelodyMonster::PITCH3_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(36.5, 116.0)), module, MelodyMonster::PITCH4_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(46.0, 116.0)), module, MelodyMonster::PITCH5_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(55.5, 116.0)), module, MelodyMonster::PITCH6_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(65.0, 116.0)), module, MelodyMonster::PITCH7_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(74.5, 116.0)), module, MelodyMonster::PITCH8_OUTPUT));
-
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(12.0, 57.5)), module, MelodyMonster::TRACK1_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(26.0, 57.5)), module, MelodyMonster::TRACK2_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(40.0, 57.5)), module, MelodyMonster::TRACK3_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(54.0, 57.5)), module, MelodyMonster::TRACK4_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(68.0, 57.5)), module, MelodyMonster::TRACK5_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(82.0, 57.5)), module, MelodyMonster::TRACK6_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(96.0, 57.5)), module, MelodyMonster::TRACK7_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(110.0, 57.5)), module, MelodyMonster::TRACK8_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(100.0, 71.0)), module, MelodyMonster::FRZE_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(108.0, 71.0)), module, MelodyMonster::MUTE_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(116.0, 71.0)), module, MelodyMonster::SOLO_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(100.0, 85.0)), module, MelodyMonster::RUN_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(116.0, 85.0)), module, MelodyMonster::RSED_LIGHT));
-
-		MonsterDisplay* d = createWidget<MonsterDisplay>(mm2px(Vec(5.0, 10.0)));
-		d->box.size = mm2px(Vec(112.0, 44.0)); d->module = module; addChild(d);
+		MonsterDisplay* d = createWidget<MonsterDisplay>(mm2px(Vec(L::DISPLAY[0], L::DISPLAY[1])));
+		d->box.size = mm2px(Vec(L::DISPLAY[2], L::DISPLAY[3])); d->module = module; addChild(d);
 	}
 };
 
