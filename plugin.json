@@ -5,13 +5,13 @@
   "license": "MIT",
   "brand": "A_Development",
   "author": "Ari Klopfer",
-  "authorEmail": "",
-  "authorUrl": "",
-  "pluginUrl": "",
+  "authorEmail": "arik@adevelopment.dev",
+  "authorUrl": "https://adevelopment.dev",
+  "pluginUrl": "https://github.com/Adev-io/my-lil-melody-monster",
   "manualUrl": "https://github.com/Adev-io/my-lil-melody-monster#readme",
   "sourceUrl": "https://github.com/Adev-io/my-lil-melody-monster",
   "donateUrl": "",
-  "changelogUrl": "",
+  "changelogUrl": "https://github.com/Adev-io/my-lil-melody-monster/releases",
   "modules": [
     { "slug": "MelodyMonster", "name": "Melody Monster", "description": "8-track seeded generative melody sequencer", "tags": ["Sequencer", "Polyphonic", "Random"] }
   ]
